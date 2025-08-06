@@ -54,20 +54,15 @@ pip install beautifulsoup4
 - 在楼栋销售信息页面，右键点击页面空白处
 - 选择"另存为"或"保存页面"将文件保存到本地
 
-#### ⚠️ 注意事项
-- 确保网络连接稳定，避免页面加载不完整
-- 建议使用Chrome或Edge浏览器，兼容性更好
-- 保存的HTML文件应包含完整的页面内容
-- 如果页面显示异常，可以尝试刷新后重新保存
 
 ### 3. 提取数据
 
 ```bash
 # 处理HTML文件并生成JSON
-python extract_house_sales.py "商品房销售许可证信息-3号楼.html"
+python extract_house_sales.py "xxx-3号楼.html"
 
 # 指定输出格式
-python extract_house_sales.py "商品房销售许可证信息-3号楼.html" -o "3号楼销售信息.txt"
+python extract_house_sales.py "xxx-3号楼.html" -o "xxx3号楼销售信息.json"
 ```
 
 ### 4. 可视化展示
