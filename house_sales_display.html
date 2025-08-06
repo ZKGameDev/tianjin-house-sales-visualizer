@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>房屋销售信息展示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-number {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 6px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .file-input-container {
+            padding: 30px;
+            text-align: center;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+
+        .file-input {
+            padding: 15px 30px;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.1em;
+            color: #667eea;
+        }
+
+        .file-input:hover {
+            border-color: #764ba2;
+            background: #f0f4ff;
+        }
+
+        .file-input:focus {
+            outline: none;
+            border-color: #764ba2;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .floor-section {
+            margin-bottom: 25px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .floor-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            font-size: 1.1em;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .floor-stats {
+            font-size: 0.8em;
+            opacity: 0.9;
+        }
+
+        .houses-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
+            padding: 15px;
+        }
+
+        .house-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .house-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        .house-card.sold {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: white;
+        }
+
+        .house-card.unsold {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+            color: white;
+        }
+
+        .house-card.mortgaged {
+            border-color: #ffc107;
+            background: linear-gradient(135deg, #ffd43b 0%, #fcc419 100%);
+            color: #333;
+        }
+
+        .house-room {
+            font-size: 1em;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        .house-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            font-size: 0.8em;
+        }
+
+        .house-detail {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .house-detail-label {
+            font-weight: bold;
+            opacity: 0.8;
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            padding: 3px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: bold;
+        }
+
+        .status-badge.sold {
+            background: rgba(220, 53, 69, 0.9);
+            color: white;
+        }
+
+        .status-badge.unsold {
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+        }
+
+        .status-badge.mortgaged {
+            background: rgba(255, 193, 7, 0.9);
+            color: #333;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .error {
+            text-align: center;
+            padding: 50px;
+            color: #dc3545;
+            font-size: 1.2em;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1em;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
+        }
+
+        .legend-color.sold {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        }
+
+        .legend-color.unsold {
+            background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+        }
+
+        .legend-color.mortgaged {
+            background: linear-gradient(135deg, #ffd43b 0%, #fcc419 100%);
+        }
+
+        @media (max-width: 768px) {
+            .houses-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .legend {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 房屋销售信息展示</h1>
+            <p>按楼层排序，按售出状态涂色显示</p>
+        </div>
+
+        <div class="file-input-container">
+            <input type="file" id="jsonFile" class="file-input" accept=".json" placeholder="选择JSON文件">
+            <p style="margin-top: 15px; color: #666;">请选择包含房屋销售信息的JSON文件</p>
+        </div>
+
+        <div class="content" id="content">
+            <div class="loading" id="loading">
+                请选择JSON文件以显示房屋销售信息...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class HouseSalesDisplay {
+            constructor() {
+                this.fileInput = document.getElementById('jsonFile');
+                this.content = document.getElementById('content');
+                this.loading = document.getElementById('loading');
+                
+                this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+            }
+
+            handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        this.displayData(data);
+                    } catch (error) {
+                        this.showError('JSON文件格式错误，请检查文件内容');
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            displayData(data) {
+                this.content.innerHTML = '';
+                
+                // 显示统计信息
+                this.displayStats(data.统计信息);
+                
+                // 显示图例
+                this.displayLegend();
+                
+                // 按楼层分组并排序
+                const floors = this.groupByFloor(data.房屋详情);
+                const sortedFloors = this.sortFloors(floors);
+                
+                console.log('楼层分组结果:', sortedFloors);
+                
+                // 显示每个楼层的信息
+                sortedFloors.forEach(floor => {
+                    this.displayFloor(floor.floor, floor.houses, data.基本信息);
+                });
+            }
+
+            displayStats(stats) {
+                const statsContainer = document.createElement('div');
+                statsContainer.className = 'stats-container';
+                
+                const statItems = [
+                    { label: '总房屋数', value: stats.总房屋数, unit: '套' },
+                    { label: '已售房屋', value: stats.已售房屋数, unit: '套' },
+                    { label: '未售房屋', value: stats.未售房屋数, unit: '套' },
+                    { label: '抵押房屋', value: stats.抵押房屋数, unit: '套' },
+                    { label: '总面积', value: stats.总面积 }
+                ];
+                
+                statItems.forEach(item => {
+                    const statCard = document.createElement('div');
+                    statCard.className = 'stat-card';
+                    statCard.innerHTML = `
+                        <div class="stat-number">${item.value}</div>
+                        <div class="stat-label">${item.label}</div>
+                    `;
+                    statsContainer.appendChild(statCard);
+                });
+                
+                this.content.appendChild(statsContainer);
+            }
+
+            displayLegend() {
+                const legend = document.createElement('div');
+                legend.className = 'legend';
+                legend.innerHTML = `
+                    <div class="legend-item">
+                        <div class="legend-color sold"></div>
+                        <span>已售房屋</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color unsold"></div>
+                        <span>未售房屋</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color mortgaged"></div>
+                        <span>抵押房屋</span>
+                    </div>
+                `;
+                this.content.appendChild(legend);
+            }
+
+            groupByFloor(houses) {
+                const floors = {};
+                const seenRooms = new Set(); // 用于去重
+                
+                houses.forEach(house => {
+                    const roomNumber = house.房间号;
+                    
+                    // 去重检查
+                    if (seenRooms.has(roomNumber)) {
+                        return; // 跳过重复的房间
+                    }
+                    seenRooms.add(roomNumber);
+                    
+                    const floor = this.extractFloor(roomNumber);
+                    
+                    if (!floors[floor]) {
+                        floors[floor] = [];
+                    }
+                    floors[floor].push(house);
+                });
+                
+                return Object.entries(floors).map(([floor, houses]) => ({
+                    floor: parseInt(floor),
+                    houses: houses.sort((a, b) => this.compareRoomNumbers(a.房间号, b.房间号))
+                }));
+            }
+
+            extractFloor(roomNumber) {
+                // 提取楼层号，支持多种格式
+                // 对于格式如 "14号楼-1-101"，其中101表示1层01户
+                const parts = roomNumber.split('-');
+                if (parts.length >= 3) {
+                    // 从第三部分提取楼层号，如"101"中的"1"
+                    const roomPart = parts[2];
+                    if (roomPart && roomPart.length >= 3) {
+                        // 根据房间号长度判断楼层位数
+                        if (roomPart.length === 3) {
+                            // 3位数：如"101"表示1层01户
+                            return roomPart.charAt(0);
+                        } else if (roomPart.length === 4) {
+                            // 4位数：如"1003"表示10层03户
+                            return roomPart.substring(0, 2);
+                        } else if (roomPart.length === 5) {
+                            // 5位数：如"10003"表示10层003户
+                            return roomPart.substring(0, 2);
+                        }
+                    }
+                }
+                
+                // 备用方案：匹配楼层相关词汇
+                const match = roomNumber.match(/(\d+)层|(\d+)楼|(\d+)/);
+                if (match) {
+                    return match[1] || match[2] || match[3];
+                }
+                
+                // 如果都没有匹配到，返回0
+                return 0;
+            }
+
+            compareRoomNumbers(a, b) {
+                // 比较房间号，支持数字排序
+                // 对于格式如 "2号楼-1-101"，按单元号和房间号排序
+                const aParts = a.split('-');
+                const bParts = b.split('-');
+                
+                if (aParts.length >= 3 && bParts.length >= 3) {
+                    // 先比较单元号
+                    const aUnit = parseInt(aParts[1]) || 0;
+                    const bUnit = parseInt(bParts[1]) || 0;
+                    if (aUnit !== bUnit) {
+                        return aUnit - bUnit;
+                    }
+                    
+                    // 再比较房间号
+                    const aRoom = parseInt(aParts[2]) || 0;
+                    const bRoom = parseInt(bParts[2]) || 0;
+                    return aRoom - bRoom;
+                }
+                
+                // 备用方案：按数字排序
+                const aNum = parseInt(a.replace(/\D/g, ''));
+                const bNum = parseInt(b.replace(/\D/g, ''));
+                return aNum - bNum;
+            }
+
+            sortFloors(floors) {
+                // 按楼层从低到高排序
+                return floors.sort((a, b) => a.floor - b.floor);
+            }
+
+            displayFloor(floorNumber, houses, basicInfo) {
+                const floorSection = document.createElement('div');
+                floorSection.className = 'floor-section';
+                
+                // 计算楼层统计
+                const soldCount = houses.filter(h => h.是否出售 === '已售').length;
+                const mortgagedCount = houses.filter(h => h.是否抵押 === '是').length;
+                
+                const floorHeader = document.createElement('div');
+                floorHeader.className = 'floor-header';
+                floorHeader.innerHTML = `
+                    <span>${floorNumber}层</span>
+                    <div class="floor-stats">
+                        共${houses.length}套 | 已售${soldCount}套 | 抵押${mortgagedCount}套
+                    </div>
+                `;
+                
+                const housesGrid = document.createElement('div');
+                housesGrid.className = 'houses-grid';
+                
+                houses.forEach(house => {
+                    const houseCard = this.createHouseCard(house);
+                    housesGrid.appendChild(houseCard);
+                });
+                
+                floorSection.appendChild(floorHeader);
+                floorSection.appendChild(housesGrid);
+                this.content.appendChild(floorSection);
+            }
+
+            createHouseCard(house) {
+                const card = document.createElement('div');
+                card.className = 'house-card';
+                
+                // 根据状态添加样式类
+                if (house.是否出售 === '已售') {
+                    card.classList.add('sold');
+                } else {
+                    card.classList.add('unsold');
+                }
+                
+                if (house.是否抵押 === '是') {
+                    card.classList.add('mortgaged');
+                }
+                
+                // 创建状态徽章
+                const statusBadge = document.createElement('div');
+                statusBadge.className = 'status-badge';
+                if (house.是否出售 === '已售') {
+                    statusBadge.classList.add('sold');
+                    statusBadge.textContent = '已售';
+                } else {
+                    statusBadge.classList.add('unsold');
+                    statusBadge.textContent = '未售';
+                }
+                
+                if (house.是否抵押 === '是') {
+                    statusBadge.classList.add('mortgaged');
+                    statusBadge.textContent = '抵押';
+                }
+                
+                card.innerHTML = `
+                    <div class="house-room">${house.房间号}</div>
+                    <div class="house-details">
+                        <div class="house-detail">
+                            <span class="house-detail-label">建筑面积:</span>
+                            <span>${house.建筑面积}</span>
+                        </div>
+                        <div class="house-detail">
+                            <span class="house-detail-label">销售单价:</span>
+                            <span>${house.申报销售单价}</span>
+                        </div>
+                        <div class="house-detail">
+                            <span class="house-detail-label">销售状态:</span>
+                            <span>${house.是否出售}</span>
+                        </div>
+                        <div class="house-detail">
+                            <span class="house-detail-label">抵押状态:</span>
+                            <span>${house.是否抵押}</span>
+                        </div>
+                    </div>
+                `;
+                
+                card.appendChild(statusBadge);
+                return card;
+            }
+
+            showError(message) {
+                this.content.innerHTML = `<div class="error">${message}</div>`;
+            }
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            new HouseSalesDisplay();
+        });
+    </script>
+</body>
+</html> 
