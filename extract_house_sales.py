@@ -36,19 +36,40 @@ def extract_house_sales_info(html_file_path):
         basic_info = {}
         
         # 提取房屋坐落信息
-        location_elements = soup.find_all('span', class_='el-descriptions-item__label')
-        content_elements = soup.find_all('span', class_='el-descriptions-item__content')
+        # 更新选择器以匹配实际的HTML结构
+        label_elements = soup.find_all('span', class_=lambda x: x and 'el-descriptions-item__label' in x)
         
-        for label, content in zip(location_elements, content_elements):
+        for label in label_elements:
             label_text = label.get_text(strip=True)
-            content_text = content.get_text(strip=True)
+            # 查找对应的content元素（下一个兄弟元素）
+            content_element = label.find_next_sibling('span', class_=lambda x: x and 'el-descriptions-item__content' in x)
             
-            if '房屋坐落' in label_text:
-                basic_info['房屋坐落'] = content_text
-            elif '销售面积' in label_text:
-                basic_info['销售面积'] = content_text
-            elif '销售许可证证载用途' in label_text:
-                basic_info['销售许可证证载用途'] = content_text
+            if content_element:
+                content_text = content_element.get_text(strip=True)
+                
+                if '项目名称' in label_text:
+                    basic_info['项目名称'] = content_text
+                elif '房屋坐落' in label_text:
+                    basic_info['房屋坐落'] = content_text
+                elif '销售面积' in label_text:
+                    basic_info['销售面积'] = content_text
+                elif '销售许可证证载用途' in label_text:
+                    basic_info['销售许可证证载用途'] = content_text
+                elif '许可证号' in label_text:
+                    basic_info['许可证号'] = content_text
+        
+        # 如果仍然没有找到项目名称，尝试备用方法
+        if '项目名称' not in basic_info:
+            # 从页面标题提取
+            title_element = soup.find('title')
+            if title_element:
+                title_text = title_element.get_text(strip=True)
+                # 尝试从标题中提取项目名称
+                if '商品房销售许可证信息' in title_text:
+                    # 提取标题中的项目名称部分
+                    project_name = title_text.replace('商品房销售许可证信息', '').strip()
+                    if project_name:
+                        basic_info['项目名称'] = project_name
         
         # 提取房屋详细信息
         house_details = []
