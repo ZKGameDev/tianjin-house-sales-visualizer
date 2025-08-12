@@ -80,6 +80,7 @@ python extract_house_sales.py "xxx-3号楼.html" -o "xxx3号楼销售信息.json
 3. 选择生成的JSON文件
 4. 查看按楼层排序的房屋销售信息
 
+支持自动加载默认数据，默认读取路径为与 HTML 同级的 ./data/ 目录。
 
 ## 🛠️ 技术栈
 
