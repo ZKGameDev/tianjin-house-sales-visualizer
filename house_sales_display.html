@@ -668,18 +668,37 @@
 
             groupByFloor(houses) {
                 const floors = {};
-                const seenRooms = new Set(); // 用于去重
+                const roomMap = new Map(); // 用于存储房间信息，处理重复
                 
                 houses.forEach(house => {
                     const roomNumber = house.房间号;
                     
-                    // 去重检查
-                    if (seenRooms.has(roomNumber)) {
-                        return; // 跳过重复的房间
+                    // 处理重复房间：如果已存在，比较状态
+                    if (roomMap.has(roomNumber)) {
+                        const existingHouse = roomMap.get(roomNumber);
+                        
+                        // 记录冲突信息用于调试
+                        if (existingHouse.是否出售 !== house.是否出售 || existingHouse.是否抵押 !== house.是否抵押) {
+                            console.warn(`房间 ${roomNumber} 存在冲突数据:`, {
+                                existing: { 出售: existingHouse.是否出售, 抵押: existingHouse.是否抵押 },
+                                new: { 出售: house.是否出售, 抵押: house.是否抵押 }
+                            });
+                        }
+                        
+                        // 优先保留已售状态，其次保留抵押状态
+                        if (house.是否出售 === '已售' || 
+                            (existingHouse.是否出售 !== '已售' && house.是否抵押 === '是')) {
+                            console.log(`房间 ${roomNumber} 更新为:`, { 出售: house.是否出售, 抵押: house.是否抵押 });
+                            roomMap.set(roomNumber, house);
+                        }
+                    } else {
+                        roomMap.set(roomNumber, house);
                     }
-                    seenRooms.add(roomNumber);
-                    
-                    const floor = this.extractFloor(roomNumber);
+                });
+                
+                // 将去重后的房间按楼层分组
+                roomMap.forEach(house => {
+                    const floor = this.extractFloor(house.房间号);
                     
                     if (!floors[floor]) {
                         floors[floor] = [];
