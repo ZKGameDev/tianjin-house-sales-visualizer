@@ -281,7 +281,8 @@ def main():
             else:
                 filename_base = f"{base_html_name}_销售信息"
             filename_base = sanitize_filename(filename_base, default=f"{base_html_name}_销售信息")
-            output_file = os.path.join(dir_name, f"{filename_base}.json")
+            date_suffix = datetime.now().strftime('%Y%m%d')
+            output_file = os.path.join(dir_name, f"{filename_base}_{date_suffix}.json")
 
         print(f"成功提取到 {data['统计信息']['总房屋数']} 套房屋信息")
         print(f"已售房屋: {data['统计信息']['已售房屋数']} 套")

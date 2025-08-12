@@ -169,9 +169,7 @@
             opacity: 1;
         }
 
-        .tabs-content {
-            /* 页签内容容器 */
-        }
+        /* .tabs-content 容器由脚本动态填充，无需额外样式 */
 
         .tab-content {
             display: none;
@@ -422,7 +420,7 @@
 
         <div class="content" id="content">
             <div class="loading" id="loading">
-                请选择JSON文件以显示房屋销售信息...
+                正在尝试从 ./data/ 自动加载数据；也可点击右上角“添加文件”手动选择 JSON...
             </div>
         </div>
     </div>
@@ -442,6 +440,8 @@
                 this.activeTab = null;
                 
                 this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+                    // 默认尝试从同级目录 ./data/ 加载 JSON 数据
+                    this.loadDefaultDataFromDirectory();
             }
 
             handleFileSelect(event) {
@@ -978,6 +978,138 @@
         document.addEventListener('DOMContentLoaded', () => {
             new HouseSalesDisplay();
         });
+        
+        // 为类添加默认目录加载功能
+        HouseSalesDisplay.prototype.loadDefaultDataFromDirectory = async function () {
+            const basePath = './data/';
+            const manifestCandidates = ['manifest.json', 'index.json'];
+            let manifest = null;
+
+            // 尝试获取清单文件
+            for (const name of manifestCandidates) {
+                try {
+                    const url = basePath + name;
+                    const resp = await fetch(url, { cache: 'no-cache' });
+                    if (resp.ok) {
+                        // 可能为 JSON 或纯文本
+                        const contentType = resp.headers.get('content-type') || '';
+                        if (contentType.includes('application/json')) {
+                            manifest = await resp.json();
+                        } else {
+                            const text = await resp.text();
+                            manifest = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                        }
+                        break;
+                    }
+                } catch (err) {
+                    // 忽略，尝试下一个候选
+                }
+            }
+
+            if (!manifest) {
+                // 未发现清单文件，尝试从目录列表解析 .json
+                try {
+                    const listingResp = await fetch(basePath, { cache: 'no-cache' });
+                    if (listingResp.ok) {
+                        const contentType = listingResp.headers.get('content-type') || '';
+                        const text = await listingResp.text();
+                        let discovered = [];
+                        if (contentType.includes('text/html')) {
+                            // 使用 DOMParser 解析目录索引页面（如 python -m http.server / nginx autoindex）
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(text, 'text/html');
+                            discovered = Array.from(doc.querySelectorAll('a[href]'))
+                                .map(a => a.getAttribute('href') || '')
+                                .filter(href => /\.json(?:\?|#|$)/i.test(href))
+                                .map(href => {
+                                    // 规范化相对路径
+                                    if (/^https?:/i.test(href) || href.startsWith('/')) {
+                                        return href;
+                                    }
+                                    return basePath + href;
+                                });
+                        } else {
+                            // 简单正则从纯文本中提取 .json 链接
+                            const regex = /href=["']([^"']+\.json)["']/ig;
+                            let m;
+                            while ((m = regex.exec(text)) !== null) {
+                                const href = m[1];
+                                discovered.push(/^https?:/i.test(href) || href.startsWith('/') ? href : basePath + href);
+                            }
+                        }
+
+                        // 去重并转为文件名（相对于 basePath）
+                        const uniqueUrls = Array.from(new Set(discovered));
+                        if (uniqueUrls.length) {
+                            manifest = uniqueUrls.map(url => url.replace(basePath, ''));
+                        }
+                    }
+                } catch (e) {
+                    // 目录获取失败，静默降级
+                }
+
+                if (!manifest) {
+                    console.info('未发现清单文件，且无法解析目录列表');
+                    return;
+                }
+            }
+
+            // 规范化清单为字符串文件名数组
+            let fileList = [];
+            if (Array.isArray(manifest)) {
+                // 可能是字符串数组或对象数组
+                fileList = manifest.map(item => {
+                    if (typeof item === 'string') return item;
+                    if (item && typeof item === 'object') return item.name || item.file || '';
+                    return '';
+                }).filter(Boolean);
+            } else if (manifest && typeof manifest === 'object') {
+                if (Array.isArray(manifest.files)) {
+                    fileList = manifest.files.map(f => (typeof f === 'string' ? f : (f && (f.name || f.file)))).filter(Boolean);
+                }
+            }
+
+            if (!fileList.length) {
+                console.info('清单为空，未自动加载任何文件');
+                return;
+            }
+
+            // 逐个拉取并创建页签
+            let loadedCount = 0;
+            for (const fname of fileList) {
+                const normalized = fname.endsWith('.json') ? fname : `${fname}.json`;
+                const url = basePath + normalized;
+                try {
+                    const resp = await fetch(url, { cache: 'no-cache' });
+                    if (!resp.ok) continue;
+                    const data = await resp.json();
+
+                    const fileNameBase = normalized.replace(/\.json$/i, '');
+                    if (this.filesData.has(fileNameBase)) {
+                        continue;
+                    }
+
+                    const hash = this.generateHash(JSON.stringify(data));
+                    const existingFileName = this.findFileByHash(hash);
+                    if (existingFileName && existingFileName !== fileNameBase) {
+                        continue;
+                    }
+
+                    this.filesData.set(fileNameBase, data);
+                    this.fileHashes.set(fileNameBase, hash);
+                    this.createTab(fileNameBase, data);
+                    loadedCount += 1;
+                } catch (err) {
+                    // 单个文件失败不影响其他文件
+                    console.warn('加载失败:', url, err);
+                }
+            }
+
+            if (loadedCount > 0) {
+                this.content.style.display = 'none';
+                this.tabsContainer.style.display = 'block';
+            }
+        };
     </script>
 </body>
 </html> 
