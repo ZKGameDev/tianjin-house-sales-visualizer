@@ -84,6 +84,11 @@
             font-size: 0.9em;
         }
 
+        /* 让“总面积”的数值字号与标签一致，避免在窄列中换行过多 */
+        .stat-number.total-area {
+            font-size: 0.9em;
+        }
+
         .file-input-container {
             display: none;
         }
@@ -211,6 +216,41 @@
                 padding: 10px 20px;
                 font-size: 0.9em;
             }
+
+            /* 房间卡片在窄屏下的优化：限制卡片最大宽度并居中，减少字段与值之间的空白 */
+            .houses-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)); /* 窄屏改为双列 */
+                justify-items: stretch; /* 让卡片拉伸铺满列宽 */
+                width: 100%;
+                gap: 8px;
+            }
+
+            .house-card {
+                width: 100%;
+                max-width: none; /* 双列时取消最大宽度限制 */
+                padding: 10px;
+                margin: 0; /* 取消水平居中外边距 */
+            }
+
+            .house-details {
+                gap: 4px; /* 缩小行间距，提升紧凑度 */
+            }
+
+            .house-detail {
+                display: grid; /* 使用双列网格代替 space-between，避免被撑满 */
+                grid-template-columns: auto 1fr;
+                column-gap: 8px;
+                justify-content: start;
+                align-items: center;
+            }
+            .house-detail-label {
+                min-width: 60px; /* 双列下进一步紧凑 */
+            }
+
+            .house-room {
+                font-size: 0.95em; /* 略缩标题字号以匹配窄卡片 */
+                word-break: break-all;
+            }
         }
 
         .content {
@@ -289,7 +329,7 @@
 
         .house-details {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr; /* 单列：一行一个条目 */
             gap: 6px;
             font-size: 0.8em;
         }
@@ -437,6 +477,8 @@
                 
                 this.filesData = new Map(); // 存储所有文件数据
                 this.fileHashes = new Map(); // 存储文件内容哈希值
+                this.projectDateKeys = new Set(); // 唯一性约束：同项目+同日期
+                this.projectGroups = new Map(); // 项目分组：项目名称 -> [{ fileName, date, data }]
                 this.activeTab = null;
                 
                 this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
@@ -462,28 +504,25 @@
                             const fileName = file.name.replace('.json', '');
                             console.log('解析文件成功:', fileName);
                             
-                            // 生成文件内容哈希值
+                            // 解析项目与日期；以 项目+日期 为唯一键（允许不同日期内容相同）
+                            const projectName = data.基本信息?.项目名称 || fileName;
+                            const date = this.resolveExportDate(data, fileName);
+                            const uniqueKey = this.makeProjectDateKey(projectName, date);
+
+                            if (this.projectDateKeys.has(uniqueKey)) {
+                                console.log('同项目同日期已存在，跳过:', projectName, date);
+                                this.showDuplicateProjectDateMessage(projectName, date);
+                                return;
+                            }
+
+                            // 生成文件内容哈希值（仅缓存，不用于去重）
                             const fileContent = e.target.result;
                             const hash = this.generateHash(fileContent);
-                            
-                            // 检查是否已存在相同文件名的页签
-                            if (this.filesData.has(fileName)) {
-                                console.log('文件已存在，跳过:', fileName);
-                                this.showDuplicateFileMessage(fileName);
-                                return;
-                            }
-                            
-                            // 检查是否已存在相同内容的文件
-                            const existingFileName = this.findFileByHash(hash);
-                            if (existingFileName && existingFileName !== fileName) {
-                                console.log('文件内容重复，跳过:', fileName);
-                                this.showDuplicateContentMessage(fileName, existingFileName);
-                                return;
-                            }
-                            
+
+                            this.projectDateKeys.add(uniqueKey);
                             this.filesData.set(fileName, data);
                             this.fileHashes.set(fileName, hash);
-                            this.createTab(fileName, data);
+                            this.processFile(fileName, data);
                         } catch (error) {
                             console.error(`文件 ${file.name} 格式错误:`, error);
                         }
@@ -492,110 +531,161 @@
                 });
             }
 
-            createTab(fileName, data) {
-                console.log('创建页签:', fileName);
-                
-                // 获取“项目名称_日期”作为页签标题
-                const baseProjectName = data.基本信息?.项目名称 || fileName;
-                const exportDate = this.resolveExportDate(data, fileName);
-                const titleBase = exportDate ? `${baseProjectName}_${exportDate}` : baseProjectName;
-                const tabTitle = this.getUniqueTabTitle(titleBase, fileName);
-                console.log('页签标题:', tabTitle);
-                
-                // 创建页签按钮
+            // 处理单个文件：分组并创建（或复用）项目级页签
+            processFile(fileName, data) {
+                const projectName = data.基本信息?.项目名称 || fileName;
+                const date = this.resolveExportDate(data, fileName);
+                this.addToProjectGroup(projectName, { fileName, date, data });
+                this.ensureProjectTab(projectName);
+                if (this.activeTab === null) {
+                    this.switchTab(projectName);
+                }
+            }
+
+            addToProjectGroup(projectName, entry) {
+                const list = this.projectGroups.get(projectName) || [];
+                // 若存在相同日期，替换；否则追加
+                const idx = list.findIndex(it => it.date === entry.date);
+                if (idx >= 0) list[idx] = entry; else list.push(entry);
+                // 日期按降序排序（新日期在前）；无法解析的空日期排在末尾
+                list.sort((a, b) => {
+                    const aa = a.date || '';
+                    const bb = b.date || '';
+                    if (!aa && !bb) return 0;
+                    if (!aa) return 1;
+                    if (!bb) return -1;
+                    return bb.localeCompare(aa);
+                });
+                this.projectGroups.set(projectName, list);
+            }
+
+            ensureProjectTab(projectName) {
+                // 如果已存在该项目的页签则不重复创建
+                const existing = document.querySelector(`.tab-button[data-project="${projectName}"]`);
+                if (existing) return;
+
                 const tabButton = document.createElement('div');
                 tabButton.className = 'tab-button';
-                tabButton.setAttribute('data-filename', fileName); // 保持文件名作为数据属性用于标识
-                tabButton.setAttribute('data-tabtitle', titleBase); // 保存基础标题用于去重
-                tabButton.textContent = tabTitle; // 显示最终标题（可能包含后缀）
+                tabButton.setAttribute('data-project', projectName);
+                tabButton.textContent = projectName; // 页签名显示项目名称
                 tabButton.onclick = () => {
-                    console.log('点击页签:', fileName);
-                    this.switchTab(fileName);
+                    console.log('点击项目页签:', projectName);
+                    this.switchTab(projectName);
                 };
-                
-                // 添加删除按钮
+
                 const removeButton = document.createElement('div');
                 removeButton.className = 'remove-tab';
                 removeButton.innerHTML = '×';
                 removeButton.onclick = (e) => {
                     e.stopPropagation();
-                    this.removeTab(fileName);
+                    this.removeProject(projectName);
                 };
                 tabButton.appendChild(removeButton);
-                
+
                 this.tabsHeader.appendChild(tabButton);
-                
-                // 创建页签内容
+
+                // 使用项目名生成稳定的内容容器ID（用哈希避免特殊字符问题）
                 const tabContent = document.createElement('div');
                 tabContent.className = 'tab-content';
-                tabContent.id = `tab-${fileName}`;
+                tabContent.id = this.projectTabId(projectName);
                 this.tabsContent.appendChild(tabContent);
-                
-                // 如果是第一个文件，设置为活动页签
-                if (this.activeTab === null) {
-                    this.switchTab(fileName);
-                }
             }
 
-            switchTab(fileName) {
-                console.log('切换到页签:', fileName);
-                
+            switchTab(projectName) {
+                console.log('切换到项目页签:', projectName);
                 // 移除所有活动状态
                 document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                
-                // 使用数据属性查找页签按钮
-                const activeButton = document.querySelector(`.tab-button[data-filename="${fileName}"]`);
-                const activeContent = document.getElementById(`tab-${fileName}`);
-                
-                console.log('找到按钮:', activeButton);
-                console.log('找到内容:', activeContent);
-                
+
+                const activeButton = document.querySelector(`.tab-button[data-project="${projectName}"]`);
+                const tabId = this.projectTabId(projectName);
+                const activeContent = document.getElementById(tabId);
+
                 if (activeButton && activeContent) {
                     activeButton.classList.add('active');
                     activeContent.classList.add('active');
-                    this.activeTab = fileName;
-                    
-                    // 显示数据
-                    const data = this.filesData.get(fileName);
-                    console.log('页签数据:', data);
-                    if (data) {
-                        this.displayData(data, activeContent);
-                    } else {
-                        console.error('未找到数据:', fileName);
-                    }
+                    this.activeTab = projectName;
+
+                    // 渲染该项目下的视图（多日期选择或直接显示）
+                    const entries = this.projectGroups.get(projectName) || [];
+                    this.displayProjectView(projectName, entries, activeContent);
                 } else {
-                    console.error('未找到页签元素:', fileName);
+                    console.error('未找到项目页签元素:', projectName);
                 }
             }
 
-            removeTab(fileName) {
-                console.log('删除页签:', fileName);
-                
-                // 移除数据
-                this.filesData.delete(fileName);
-                this.fileHashes.delete(fileName);
-                
+            projectTabId(projectName) {
+                return `tab-${this.generateHash(projectName)}`;
+            }
+
+            displayProjectView(projectName, entries, container) {
+                container.innerHTML = '';
+                if (!entries || entries.length === 0) {
+                    this.showNoDataMessage(container);
+                    return;
+                }
+                // 始终显示日期列表，点击日期后展示数据；默认展示第一个日期
+                const hint = document.createElement('div');
+                hint.style.margin = '10px 0 6px 0';
+                hint.style.color = '#666';
+                hint.textContent = '请选择日期：';
+                container.appendChild(hint);
+
+                const dateList = document.createElement('div');
+                dateList.className = 'tabs-header';
+                container.appendChild(dateList);
+
+                const dataContainer = document.createElement('div');
+                container.appendChild(dataContainer);
+
+                let firstButton = null;
+                entries.forEach((entry, idx) => {
+                    const btn = document.createElement('div');
+                    btn.className = 'tab-button';
+                    btn.textContent = entry.date || '未知日期';
+                    btn.onclick = () => {
+                        // 切换激活样式
+                        Array.from(dateList.children).forEach(c => c.classList.remove('active'));
+                        btn.classList.add('active');
+                        // 渲染对应数据
+                        this.displayData(entry.data, dataContainer);
+                    };
+                    dateList.appendChild(btn);
+                    if (idx === 0) firstButton = btn;
+                });
+
+                // 默认激活并展示第一个日期
+                if (firstButton) {
+                    firstButton.classList.add('active');
+                    this.displayData(entries[0].data, dataContainer);
+                }
+            }
+
+            removeProject(projectName) {
+                console.log('删除项目页签:', projectName);
+                // 从分组中移除项目，顺带清理 filesData/fileHashes 中对应文件（可选）
+                const entries = this.projectGroups.get(projectName) || [];
+                entries.forEach(e => {
+                    this.filesData.delete(e.fileName);
+                    this.fileHashes.delete(e.fileName);
+                });
+                this.projectGroups.delete(projectName);
+
                 // 移除页签按钮
-                const tabButton = document.querySelector(`.tab-button[data-filename="${fileName}"]`);
-                if (tabButton) {
-                    tabButton.remove();
-                }
-                
+                const tabButton = document.querySelector(`.tab-button[data-project="${projectName}"]`);
+                if (tabButton) tabButton.remove();
+
                 // 移除页签内容
-                const tabContent = document.getElementById(`tab-${fileName}`);
-                if (tabContent) {
-                    tabContent.remove();
-                }
-                
-                // 如果没有页签了，显示默认内容
-                if (this.filesData.size === 0) {
+                const tabContent = document.getElementById(this.projectTabId(projectName));
+                if (tabContent) tabContent.remove();
+
+                // 恢复或切换
+                if (this.projectGroups.size === 0) {
                     this.tabsContainer.style.display = 'none';
                     this.content.style.display = 'block';
                 } else {
-                    // 切换到第一个页签
-                    const firstFileName = this.filesData.keys().next().value;
-                    this.switchTab(firstFileName);
+                    const firstProject = this.projectGroups.keys().next().value;
+                    this.switchTab(firstProject);
                 }
             }
 
@@ -628,18 +718,19 @@
                 statsContainer.className = 'stats-container';
                 
                 const statItems = [
-                    { label: '总房屋数', value: stats.总房屋数, unit: '套' },
-                    { label: '已售房屋', value: stats.已售房屋数, unit: '套' },
-                    { label: '未售房屋', value: stats.未售房屋数, unit: '套' },
-                    { label: '抵押房屋', value: stats.抵押房屋数, unit: '套' },
-                    { label: '总面积', value: stats.总面积 }
+                    { key: 'total', label: '总房屋数', value: stats.总房屋数, unit: '套' },
+                    { key: 'sold', label: '已售房屋', value: stats.已售房屋数, unit: '套' },
+                    { key: 'unsold', label: '未售房屋', value: stats.未售房屋数, unit: '套' },
+                    { key: 'mortgaged', label: '抵押房屋', value: stats.抵押房屋数, unit: '套' },
+                    { key: 'totalArea', label: '总面积', value: stats.总面积 }
                 ];
                 
                 statItems.forEach(item => {
                     const statCard = document.createElement('div');
                     statCard.className = 'stat-card';
+                    const isTotalArea = item.key === 'totalArea';
                     statCard.innerHTML = `
-                        <div class="stat-number">${item.value}</div>
+                        <div class="stat-number ${isTotalArea ? 'total-area' : ''}">${item.value}</div>
                         <div class="stat-label">${item.label}</div>
                     `;
                     statsContainer.appendChild(statCard);
@@ -849,14 +940,6 @@
                             <span class="house-detail-label">销售单价:</span>
                             <span>${house.申报销售单价}</span>
                         </div>
-                        <div class="house-detail">
-                            <span class="house-detail-label">销售状态:</span>
-                            <span>${house.是否出售}</span>
-                        </div>
-                        <div class="house-detail">
-                            <span class="house-detail-label">抵押状态:</span>
-                            <span>${house.是否抵押}</span>
-                        </div>
                     </div>
                 `;
                 
@@ -938,6 +1021,33 @@
                 }, 3000);
             }
 
+            showDuplicateProjectDateMessage(projectName, date) {
+                const message = document.createElement('div');
+                message.className = 'duplicate-message';
+                message.innerHTML = `
+                    <div style="
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        background: #ffc107;
+                        color: #333;
+                        padding: 12px 16px;
+                        border-radius: 6px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                        z-index: 1000;
+                        font-size: 13px;
+                        max-width: 280px;
+                    ">
+                        <strong>⚠️ 已存在</strong><br>
+                        项目 "${projectName}" 的日期 "${date || '未知'}" 已导入
+                    </div>
+                `;
+                document.body.appendChild(message);
+                setTimeout(() => {
+                    if (message.parentNode) message.parentNode.removeChild(message);
+                }, 3000);
+            }
+
             generateHash(str) {
                 // 简单的字符串哈希函数
                 let hash = 0;
@@ -959,22 +1069,13 @@
                 return null;
             }
 
-            getUniqueTabTitle(titleBase, fileName) {
-                // 检查是否已有相同完整标题（项目名称_日期）的页签
-                const existingButtons = Array.from(document.querySelectorAll('.tab-button'));
-                const sameTitleTabs = existingButtons.filter(button => {
-                    const attr = button.getAttribute('data-tabtitle') || '';
-                    const text = button.textContent || '';
-                    return attr === titleBase || text === titleBase;
-                });
-                
-                // 如果没有重复，直接返回基础标题
-                if (sameTitleTabs.length === 0) {
-                    return titleBase;
-                }
-                
-                // 如果有重复，添加文件名后缀来区分
-                return `${titleBase} (${fileName})`;
+            // 保留方法名以兼容可能的外部扩展（当前未使用）
+            getUniqueTabTitle(titleBase, fileName) { return titleBase; }
+
+            makeProjectDateKey(projectName, date) {
+                const ph = this.generateHash(projectName || '');
+                const dd = date || 'NA';
+                return `${ph}__${dd}`;
             }
 
             resolveExportDate(data, fileName) {
@@ -1110,19 +1211,20 @@
                     const data = await resp.json();
 
                     const fileNameBase = normalized.replace(/\.json$/i, '');
-                    if (this.filesData.has(fileNameBase)) {
+                    const projectName = data.基本信息?.项目名称 || fileNameBase;
+                    const date = this.resolveExportDate(data, fileNameBase);
+                    const uniqueKey = this.makeProjectDateKey(projectName, date);
+
+                    if (this.projectDateKeys.has(uniqueKey)) {
+                        console.info('自动加载跳过同项目同日期文件:', projectName, date, fileNameBase);
                         continue;
                     }
 
                     const hash = this.generateHash(JSON.stringify(data));
-                    const existingFileName = this.findFileByHash(hash);
-                    if (existingFileName && existingFileName !== fileNameBase) {
-                        continue;
-                    }
-
+                    this.projectDateKeys.add(uniqueKey);
                     this.filesData.set(fileNameBase, data);
                     this.fileHashes.set(fileNameBase, hash);
-                    this.createTab(fileNameBase, data);
+                    this.processFile(fileNameBase, data);
                     loadedCount += 1;
                 } catch (err) {
                     // 单个文件失败不影响其他文件
