@@ -84,6 +84,10 @@ def extract_house_sales_info(html_file_path):
                     if project_name:
                         basic_info['项目名称'] = project_name
         
+        # 在基本信息中加入导出日期（用于前端页签与文件命名）
+        export_date = datetime.now().strftime('%Y%m%d')
+        basic_info['导出日期'] = export_date
+
         # 提取房屋详细信息
         house_details = []
         
@@ -281,7 +285,8 @@ def main():
             else:
                 filename_base = f"{base_html_name}_销售信息"
             filename_base = sanitize_filename(filename_base, default=f"{base_html_name}_销售信息")
-            date_suffix = datetime.now().strftime('%Y%m%d')
+            date_suffix = (data.get('基本信息', {}).get('导出日期')
+                           or datetime.now().strftime('%Y%m%d'))
             output_file = os.path.join(dir_name, f"{filename_base}_{date_suffix}.json")
 
         print(f"成功提取到 {data['统计信息']['总房屋数']} 套房屋信息")

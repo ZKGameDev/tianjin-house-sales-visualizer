@@ -495,17 +495,19 @@
             createTab(fileName, data) {
                 console.log('创建页签:', fileName);
                 
-                // 获取项目名称作为页签标题
+                // 获取“项目名称_日期”作为页签标题
                 const baseProjectName = data.基本信息?.项目名称 || fileName;
-                const projectName = this.getUniqueTabTitle(baseProjectName, fileName);
-                console.log('页签标题:', projectName);
+                const exportDate = this.resolveExportDate(data, fileName);
+                const titleBase = exportDate ? `${baseProjectName}_${exportDate}` : baseProjectName;
+                const tabTitle = this.getUniqueTabTitle(titleBase, fileName);
+                console.log('页签标题:', tabTitle);
                 
                 // 创建页签按钮
                 const tabButton = document.createElement('div');
                 tabButton.className = 'tab-button';
                 tabButton.setAttribute('data-filename', fileName); // 保持文件名作为数据属性用于标识
-                tabButton.setAttribute('data-projectname', baseProjectName); // 保存原始项目名称
-                tabButton.textContent = projectName; // 显示项目名称（可能包含后缀）
+                tabButton.setAttribute('data-tabtitle', titleBase); // 保存基础标题用于去重
+                tabButton.textContent = tabTitle; // 显示最终标题（可能包含后缀）
                 tabButton.onclick = () => {
                     console.log('点击页签:', fileName);
                     this.switchTab(fileName);
@@ -957,20 +959,43 @@
                 return null;
             }
 
-            getUniqueTabTitle(projectName, fileName) {
-                // 检查是否已有相同项目名称的页签
+            getUniqueTabTitle(titleBase, fileName) {
+                // 检查是否已有相同完整标题（项目名称_日期）的页签
                 const existingButtons = Array.from(document.querySelectorAll('.tab-button'));
-                const sameProjectTabs = existingButtons.filter(button => 
-                    button.getAttribute('data-projectname') === projectName
-                );
+                const sameTitleTabs = existingButtons.filter(button => {
+                    const attr = button.getAttribute('data-tabtitle') || '';
+                    const text = button.textContent || '';
+                    return attr === titleBase || text === titleBase;
+                });
                 
-                // 如果没有重复，直接返回项目名称
-                if (sameProjectTabs.length === 0) {
-                    return projectName;
+                // 如果没有重复，直接返回基础标题
+                if (sameTitleTabs.length === 0) {
+                    return titleBase;
                 }
                 
                 // 如果有重复，添加文件名后缀来区分
-                return `${projectName} (${fileName})`;
+                return `${titleBase} (${fileName})`;
+            }
+
+            resolveExportDate(data, fileName) {
+                // 优先从 基本信息.导出日期 获取（期望为YYYYMMDD）
+                const basicDate = data?.基本信息?.导出日期;
+                if (basicDate && /^\d{8}$/.test(basicDate)) return basicDate;
+                
+                // 尝试从文件名末尾解析 _YYYYMMDD
+                if (fileName) {
+                    const m = fileName.match(/_(\d{8})$/);
+                    if (m) return m[1];
+                }
+                
+                // 回退到 统计信息.提取时间（YYYY-MM-DD HH:mm:ss）
+                const ts = data?.统计信息?.提取时间;
+                if (ts && typeof ts === 'string' && ts.length >= 10) {
+                    const ymd = ts.slice(0, 10).replace(/-/g, '');
+                    if (/^\d{8}$/.test(ymd)) return ymd;
+                }
+                
+                return '';
             }
         }
 
