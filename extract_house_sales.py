@@ -14,6 +14,19 @@ import json
 from datetime import datetime
 
 
+def sanitize_filename(raw_name, default='输出'):
+    """清理文件名中的非法字符并裁剪边界空格/点"""
+    if not isinstance(raw_name, str):
+        return default
+    # 归一化空白
+    name = re.sub(r"\s+", " ", raw_name).strip()
+    # 替换 Windows 非法字符: <>:"/\|?*
+    name = re.sub(r"[<>:\"/\\|?*]+", "_", name)
+    # 去掉结尾的点或空格（Windows 不允许）
+    name = name.rstrip(". ")
+    # 防御空字符串
+    return name or default
+
 def extract_house_sales_info(html_file_path):
     """
     从HTML文件中提取房屋销售信息
@@ -245,19 +258,31 @@ def main():
         print(f"错误: 文件 '{args.html_file}' 不存在")
         sys.exit(1)
     
-    # 确定输出文件路径
-    if args.output:
-        output_file = args.output
-    else:
-        base_name = os.path.splitext(args.html_file)[0]
-        output_file = f"{base_name}_销售信息.json"
-    
     print(f"正在处理文件: {args.html_file}")
     
     # 提取数据
     data = extract_house_sales_info(args.html_file)
     
     if data:
+        # 按需求确定默认输出文件名：项目名称+房屋坐落
+        if args.output:
+            output_file = args.output
+        else:
+            dir_name = os.path.dirname(args.html_file)
+            base_html_name = os.path.splitext(os.path.basename(args.html_file))[0]
+            project_name = (data.get('基本信息', {}).get('项目名称') or '').strip()
+            location = (data.get('基本信息', {}).get('房屋坐落') or '').strip()
+            if project_name and location:
+                filename_base = f"{project_name}_{location}"
+            elif project_name:
+                filename_base = project_name
+            elif location:
+                filename_base = location
+            else:
+                filename_base = f"{base_html_name}_销售信息"
+            filename_base = sanitize_filename(filename_base, default=f"{base_html_name}_销售信息")
+            output_file = os.path.join(dir_name, f"{filename_base}.json")
+
         print(f"成功提取到 {data['统计信息']['总房屋数']} 套房屋信息")
         print(f"已售房屋: {data['统计信息']['已售房屋数']} 套")
         print(f"未售房屋: {data['统计信息']['未售房屋数']} 套")
