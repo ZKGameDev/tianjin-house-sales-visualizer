@@ -116,6 +116,29 @@ def extract_house_sales_info(html_file_path):
                 if house_info.get('房间号'):
                     house_details.append(house_info)
         
+        # 按房间号进行去重：优先保留“已售”，否则在未售情况下优先保留“是否抵押=是”
+        # 这样可以在原始HTML存在重复行时，输出更准确的JSON数据
+        unique_house_map = {}
+        for house in house_details:
+            room_number = house.get('房间号')
+            if not room_number:
+                continue
+            existing_house = unique_house_map.get(room_number)
+            if existing_house is None:
+                unique_house_map[room_number] = house
+            else:
+                # 评分规则：已售(1) > 未售(0)；在同为未售时，抵押是(1) > 否(0)
+                def score(h):
+                    is_sold = 1 if h.get('是否出售') == '已售' else 0
+                    is_mortgaged = 1 if h.get('是否抵押') == '是' else 0
+                    return (is_sold, is_mortgaged)
+
+                if score(house) > score(existing_house):
+                    unique_house_map[room_number] = house
+
+        # 使用去重后的列表
+        house_details = list(unique_house_map.values())
+        
         # 统计信息
         total_houses = len(house_details)
         sold_houses = len([h for h in house_details if h.get('是否出售') == '已售'])
